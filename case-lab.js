@@ -4,7 +4,7 @@
 const causes={concept:'概念没分清',clue:'题干线索没抓住',question:'看错题问',condition:'漏了适用条件',factor:'相关因素没写准',number:'数值或单位错配',measure:'措施选用不当',expression:'答案不够具体'};
 const plain=v=>v&&typeof v==='object'&&!Array.isArray(v)?v:{};
 state.casePractice=plain(state.casePractice);
-state.readingFont=Number.isInteger(state.readingFont)?Math.min(21,Math.max(15,state.readingFont)):16;
+const migrateReadingFont=state.readingFontVersion!==2;if(migrateReadingFont&&(!Number.isInteger(state.readingFont)||state.readingFont===16))state.readingFont=18;state.readingFont=Number.isInteger(state.readingFont)?Math.min(24,Math.max(16,state.readingFont)):18;state.readingFontVersion=2;if(migrateReadingFont)save();
 const lesson=(id,mode='framework',params={})=>'#study/'+id+'/'+mode+(Object.keys(params).length?'?'+new URLSearchParams(params):'');
 function selected(m){const q=new URLSearchParams(location.hash.split('?')[1]||'').get('q');return m.drills.find(d=>d.id===q)||m.drills[0]}
 function record(key){return state.casePractice[key]=plain(state.casePractice[key])}
@@ -16,13 +16,13 @@ for(const id of CASE_ORDER){const m=CURRICULUM[id];if(!m)continue;
  if(state.wrong.includes(id))out.push({id:'legacy-'+id,system:id,kind:'legacy',title:CASES.find(c=>c.id===id)?.title||m.title,detail:'原有专题作答 · 待复习',url:'#case/'+id});
 }return out}
 function badge(){const n=$('#wrongCount');if(n)n.textContent=queue().length}
-function font(){document.documentElement.style.setProperty('--study-font',state.readingFont+'px');const n=$('#readingSize');if(n)n.textContent=state.readingFont+'px';const minus=$('[data-reading-font="-1"]'),plus=$('[data-reading-font="1"]');if(minus)minus.disabled=state.readingFont<=15;if(plus)plus.disabled=state.readingFont>=21}
-function tools(){const top=$('.lesson-top');if(top&&!$('#readingTools')){const bar=document.createElement('div');bar.id='readingTools';bar.className='reading-tools';bar.innerHTML='<button type="button" data-reading-font="-1" aria-label="缩小学习字号">A−</button><span id="readingSize" aria-live="polite"></span><button type="button" data-reading-font="1" aria-label="放大学习字号">A＋</button>';top.append(bar);bar.querySelectorAll('[data-reading-font]').forEach(b=>b.onclick=()=>{state.readingFont=Math.min(21,Math.max(15,state.readingFont+Number(b.dataset.readingFont)));save();font()})}font()}
+function font(){document.documentElement.style.setProperty('--study-font',state.readingFont+'px');const n=$('#readingSize');if(n)n.textContent=state.readingFont+'px';const minus=$('[data-reading-font="-1"]'),plus=$('[data-reading-font="1"]');if(minus)minus.disabled=state.readingFont<=16;if(plus)plus.disabled=state.readingFont>=24}
+function tools(){const top=$('.lesson-top');if(top&&!$('#readingTools')){const bar=document.createElement('div');bar.id='readingTools';bar.className='reading-tools';bar.innerHTML='<button type="button" data-reading-font="-1" aria-label="缩小学习字号">A−</button><span id="readingSize" aria-live="polite"></span><button type="button" data-reading-font="1" aria-label="放大学习字号">A＋</button>';top.append(bar);bar.querySelectorAll('[data-reading-font]').forEach(b=>b.onclick=()=>{state.readingFont=Math.min(24,Math.max(16,state.readingFont+Number(b.dataset.readingFont)));save();font()})}font()}
 function returnLink(m,id){const params=new URLSearchParams(location.hash.split('?')[1]||'');const from=params.get('from');if(!from||!m.drills.some(d=>d.id===from))return;
 const top=$('.lesson-top');if(top&&!$('#returnToCase')){const a=document.createElement('a');a.id='returnToCase';a.className='small-link';a.href=lesson(id,'apply',{q:from});a.textContent='回到刚才的题 →';top.insertBefore(a,top.lastElementChild)}
 document.querySelectorAll('.teaching-tabs a,.teaching-bottom a,.condition-panel a').forEach(a=>{const h=a.getAttribute('href');if(!h?.startsWith('#study/'+id+'/'))return;const [path,q='']=h.split('?'),p=new URLSearchParams(q);p.set('from',from);if(path.endsWith('/apply'))p.set('q',from);a.href=path+'?'+p});
 }
-function attach(m,id,mode){tools();returnLink(m,id);
+function attach(m,id,mode){tools();returnLink(m,id);const tabs=document.querySelector('.teaching-tabs');if(tabs&&!tabs.dataset.comfortReady){tabs.dataset.comfortReady='true';const active=tabs.querySelector('[aria-current]');if(active&&tabs.scrollWidth>tabs.clientWidth){const left=active.offsetLeft-tabs.offsetLeft;if(left<tabs.scrollLeft||left+active.offsetWidth>tabs.scrollLeft+tabs.clientWidth)tabs.scrollLeft=Math.max(0,left-(tabs.clientWidth-active.offsetWidth)/2)}}
 if(mode!=='apply')return;
 const d=selected(m),key=id+':'+d.id,r=record(key),card=$('.application-card');if(!card)return;
 const answerLabel=card.querySelector('label[for="curriculumAnswer"]');
@@ -35,7 +35,7 @@ const all=queue();$('#app').innerHTML='<div class="review-page-heading"><div><h1
 function show(){const kind=$('#reviewKind').value,sys=$('#reviewSystem').value;const filtered=queue().filter(it=>(kind==='all'||it.kind===kind)&&(sys==='all'||it.system===sys));$('#reviewQueue').innerHTML=filtered.length?filtered.map(it=>'<article class="queue-item"><div><p>'+esc(CURRICULUM[it.system].title)+'</p><h2>'+esc(it.title)+'</h2><span>'+esc(it.detail)+'</span></div><div class="queue-actions"><a class="btn secondary" href="'+it.url+'">'+(it.kind==='case'?'再做一次':'回看知识')+' →</a><button class="text-btn" data-resolve-review="'+esc(it.id)+'">本轮复习完成</button></div></article>').join(''):'<div class="empty"><strong>当前没有待复习内容</strong><p>需要再练的案例和标记“再记”的内容，会保留在这里。</p><a class="btn secondary" href="#practice">去练习 →</a></div>';document.querySelectorAll('[data-resolve-review]').forEach(b=>b.onclick=()=>{const item=queue().find(it=>it.id===b.dataset.resolveReview);if(!item)return;if(item.kind==='case')record(item.id).review=false;else if(item.kind==='recall')state.curriculumRecall[item.id]='';else state.wrong=state.wrong.filter(id=>id!==item.system);save();reviewPage();badge()})}
 $('#reviewKind').onchange=show;$('#reviewSystem').onchange=show;show();badge()}
 const prior=render;
-function decorate(){const nav=document.querySelector('[data-nav="mistakes"]');if(nav){nav.href='#review';const label=nav.querySelector('span');if(label)label.textContent='复习清单'}badge();font()}
+function decorate(){document.body?.classList.toggle('comfort-study',/^#(?:study|learn)\//.test(location.hash));const nav=document.querySelector('[data-nav="mistakes"]');if(nav){nav.href='#review';const label=nav.querySelector('span');if(label)label.textContent='复习清单'}badge();font()}
 window.CaseLab={attach,queue,badge};
 render=function(){if(location.hash.split('?')[0]==='#review')reviewPage();else prior();decorate()};
 document.addEventListener('click',()=>queueMicrotask(badge));document.addEventListener('change',()=>queueMicrotask(badge));render();
