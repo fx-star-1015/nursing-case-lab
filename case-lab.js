@@ -4,6 +4,7 @@
 const causes={concept:'概念没分清',clue:'题干线索没抓住',question:'看错题问',condition:'漏了适用条件',factor:'相关因素没写准',number:'数值或单位错配',measure:'措施选用不当',expression:'答案不够具体'};
 const plain=v=>v&&typeof v==='object'&&!Array.isArray(v)?v:{};
 state.casePractice=plain(state.casePractice);
+if(typeof CASE_TASKS!=='undefined')for(const m of Object.values(CURRICULUM))for(const d of m.drills)if(CASE_TASKS[d.id])d.title=CASE_TASKS[d.id].title;
 const migrateReadingFont=state.readingFontVersion!==2;if(migrateReadingFont&&(!Number.isInteger(state.readingFont)||state.readingFont===16))state.readingFont=18;state.readingFont=Number.isInteger(state.readingFont)?Math.min(24,Math.max(16,state.readingFont)):18;state.readingFontVersion=2;if(migrateReadingFont)save();
 const lesson=(id,mode='framework',params={})=>'#study/'+id+'/'+mode+(Object.keys(params).length?'?'+new URLSearchParams(params):'');
 function selected(m){const q=new URLSearchParams(location.hash.split('?')[1]||'').get('q');return m.drills.find(d=>d.id===q)||m.drills[0]}
@@ -26,7 +27,7 @@ function attach(m,id,mode){tools();returnLink(m,id);const tabs=document.querySel
 if(mode!=='apply')return;
 const d=selected(m),key=id+':'+d.id,r=record(key),card=$('.application-card');if(!card)return;
 const answerLabel=card.querySelector('label[for="curriculumAnswer"]');
-if(answerLabel&&!$('#caseClues')){const block=document.createElement('div');block.className='case-clues';block.innerHTML='<label for="caseClues">先抓住哪些题干线索？</label><textarea id="caseClues" placeholder="时间与阶段、症状体征、关键检查、题目要求……">'+esc(r.clues||'')+'</textarea>';answerLabel.before(block);$('#caseClues').oninput=e=>{record(key).clues=e.target.value;save()}}
+if(answerLabel&&!$('#caseClues')){const block=document.createElement('div');block.className='case-clues';block.innerHTML='<label for="caseClues">题干线索草稿（可选）</label><textarea id="caseClues" placeholder="时间与阶段、症状体征、关键检查、题目要求……">'+esc(r.clues||'')+'</textarea>';answerLabel.before(block);$('#caseClues').oninput=e=>{record(key).clues=e.target.value;save()}}
 if(!$('#caseFollowup')){const panel=document.createElement('section');panel.id='caseFollowup';panel.className='case-followup';const groups=CASE_LEARNING_LINKS[key]||[];const related=groups.map(groupId=>m.contrasts.find(g=>g.id===groupId)).filter(Boolean);panel.innerHTML='<div class="case-followup-head"><h3>这题需要再练吗？</h3><button class="progress-toggle" id="toggleCaseReview" aria-pressed="'+!!r.review+'">'+(r.review?'✓ 已加入复习':'＋ 加入复习')+'</button></div><label for="caseErrorCause">这次主要卡在哪里</label><select id="caseErrorCause"><option value="">暂不记录</option>'+Object.entries(causes).map(([k,v])=>'<option value="'+k+'" '+(r.cause===k?'selected':'')+'>'+v+'</option>').join('')+'</select><div class="case-related"><h3>回到相关知识</h3>'+(related.length?related.map(g=>'<a href="'+lesson(id,'contrast',{group:g.id,from:d.id})+'">'+esc(g.title)+' →</a>').join(''):'<a href="'+lesson(id,'contrast',{from:d.id})+'">本系统个性对照 →</a>')+'</div>';card.append(panel);
 $('#toggleCaseReview').onclick=()=>{const next=record(key);next.review=!next.review;save();const b=$('#toggleCaseReview');b.setAttribute('aria-pressed',String(next.review));b.textContent=next.review?'✓ 已加入复习':'＋ 加入复习';badge()};$('#caseErrorCause').onchange=e=>{record(key).cause=e.target.value;save();badge()}}
 }
