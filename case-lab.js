@@ -1,0 +1,42 @@
+/* Reading comfort, deliberate case practice and a learner-owned review queue. */
+(()=>{
+'use strict';
+const causes={concept:'概念没分清',clue:'题干线索没抓住',question:'看错题问',condition:'漏了适用条件',factor:'相关因素没写准',number:'数值或单位错配',measure:'措施选用不当',expression:'答案不够具体'};
+const plain=v=>v&&typeof v==='object'&&!Array.isArray(v)?v:{};
+state.casePractice=plain(state.casePractice);
+state.readingFont=Number.isInteger(state.readingFont)?Math.min(21,Math.max(15,state.readingFont)):16;
+const lesson=(id,mode='framework',params={})=>'#study/'+id+'/'+mode+(Object.keys(params).length?'?'+new URLSearchParams(params):'');
+function selected(m){const q=new URLSearchParams(location.hash.split('?')[1]||'').get('q');return m.drills.find(d=>d.id===q)||m.drills[0]}
+function record(key){return state.casePractice[key]=plain(state.casePractice[key])}
+function queue(){const out=[];
+for(const id of CASE_ORDER){const m=CURRICULUM[id];if(!m)continue;
+ for(const d of m.drills){const r=plain(state.casePractice[id+':'+d.id]);if(r.review)out.push({id:id+':'+d.id,system:id,kind:'case',title:d.title,detail:causes[r.cause]||'需要再做一次',url:lesson(id,'apply',{q:d.id})})}
+ for(const f of m.framework)if(state.curriculumRecall[f.id]==='again')out.push({id:f.id,system:id,kind:'recall',title:f.title,detail:'共性主干 · 再记',url:lesson(id,'recall')});
+ for(const g of m.contrasts)for(const r of g.rows){const k=g.id+'-'+r.id;if(state.curriculumRecall[k]==='again')out.push({id:k,system:id,kind:'recall',title:g.title+' · '+r.name,detail:'个性差异 · 再记',url:lesson(id,'contrast',{group:g.id})})}
+ if(state.wrong.includes(id))out.push({id:'legacy-'+id,system:id,kind:'legacy',title:CASES.find(c=>c.id===id)?.title||m.title,detail:'原有专题作答 · 待复习',url:'#case/'+id});
+}return out}
+function badge(){const n=$('#wrongCount');if(n)n.textContent=queue().length}
+function font(){document.documentElement.style.setProperty('--study-font',state.readingFont+'px');const n=$('#readingSize');if(n)n.textContent=state.readingFont+'px';const minus=$('[data-reading-font="-1"]'),plus=$('[data-reading-font="1"]');if(minus)minus.disabled=state.readingFont<=15;if(plus)plus.disabled=state.readingFont>=21}
+function tools(){const top=$('.lesson-top');if(top&&!$('#readingTools')){const bar=document.createElement('div');bar.id='readingTools';bar.className='reading-tools';bar.innerHTML='<button type="button" data-reading-font="-1" aria-label="缩小学习字号">A−</button><span id="readingSize" aria-live="polite"></span><button type="button" data-reading-font="1" aria-label="放大学习字号">A＋</button>';top.append(bar);bar.querySelectorAll('[data-reading-font]').forEach(b=>b.onclick=()=>{state.readingFont=Math.min(21,Math.max(15,state.readingFont+Number(b.dataset.readingFont)));save();font()})}font()}
+function returnLink(m,id){const params=new URLSearchParams(location.hash.split('?')[1]||'');const from=params.get('from');if(!from||!m.drills.some(d=>d.id===from))return;
+const top=$('.lesson-top');if(top&&!$('#returnToCase')){const a=document.createElement('a');a.id='returnToCase';a.className='small-link';a.href=lesson(id,'apply',{q:from});a.textContent='回到刚才的题 →';top.insertBefore(a,top.lastElementChild)}
+document.querySelectorAll('.teaching-tabs a,.teaching-bottom a,.condition-panel a').forEach(a=>{const h=a.getAttribute('href');if(!h?.startsWith('#study/'+id+'/'))return;const [path,q='']=h.split('?'),p=new URLSearchParams(q);p.set('from',from);if(path.endsWith('/apply'))p.set('q',from);a.href=path+'?'+p});
+}
+function attach(m,id,mode){tools();returnLink(m,id);
+if(mode!=='apply')return;
+const d=selected(m),key=id+':'+d.id,r=record(key),card=$('.application-card');if(!card)return;
+const answerLabel=card.querySelector('label[for="curriculumAnswer"]');
+if(answerLabel&&!$('#caseClues')){const block=document.createElement('div');block.className='case-clues';block.innerHTML='<label for="caseClues">先抓住哪些题干线索？</label><textarea id="caseClues" placeholder="时间与阶段、症状体征、关键检查、题目要求……">'+esc(r.clues||'')+'</textarea>';answerLabel.before(block);$('#caseClues').oninput=e=>{record(key).clues=e.target.value;save()}}
+if(!$('#caseFollowup')){const panel=document.createElement('section');panel.id='caseFollowup';panel.className='case-followup';const groups=CASE_LEARNING_LINKS[key]||[];const related=groups.map(groupId=>m.contrasts.find(g=>g.id===groupId)).filter(Boolean);panel.innerHTML='<div class="case-followup-head"><h3>这题需要再练吗？</h3><button class="progress-toggle" id="toggleCaseReview" aria-pressed="'+!!r.review+'">'+(r.review?'✓ 已加入复习':'＋ 加入复习')+'</button></div><label for="caseErrorCause">这次主要卡在哪里</label><select id="caseErrorCause"><option value="">暂不记录</option>'+Object.entries(causes).map(([k,v])=>'<option value="'+k+'" '+(r.cause===k?'selected':'')+'>'+v+'</option>').join('')+'</select><div class="case-related"><h3>回到相关知识</h3>'+(related.length?related.map(g=>'<a href="'+lesson(id,'contrast',{group:g.id,from:d.id})+'">'+esc(g.title)+' →</a>').join(''):'<a href="'+lesson(id,'contrast',{from:d.id})+'">本系统个性对照 →</a>')+'</div>';card.append(panel);
+$('#toggleCaseReview').onclick=()=>{const next=record(key);next.review=!next.review;save();const b=$('#toggleCaseReview');b.setAttribute('aria-pressed',String(next.review));b.textContent=next.review?'✓ 已加入复习':'＋ 加入复习';badge()};$('#caseErrorCause').onchange=e=>{record(key).cause=e.target.value;save();badge()}}
+}
+function reviewPage(){view='review';$('#pageLabel').textContent='复习清单';$('#evidenceBtn').hidden=true;document.querySelectorAll('[data-nav]').forEach(a=>a.classList.toggle('active',a.dataset.nav==='mistakes'));
+const all=queue();$('#app').innerHTML='<div class="review-page-heading"><div><h1>把还不稳的地方，再练一遍。</h1><p>案例复练、背诵“再记”和原有待复习作答都在这里。</p></div><span class="review-total">'+all.length+' 项</span></div><div class="toolbar"><select id="reviewKind" aria-label="筛选复习类型"><option value="all">全部类型</option><option value="case">案例复练</option><option value="recall">背诵再记</option><option value="legacy">原有专题作答</option></select><select id="reviewSystem" aria-label="筛选复习系统"><option value="all">全部系统</option>'+CASE_ORDER.map(id=>'<option value="'+id+'">'+esc(CURRICULUM[id].title)+'</option>').join('')+'</select></div><div id="reviewQueue"></div>';
+function show(){const kind=$('#reviewKind').value,sys=$('#reviewSystem').value;const filtered=queue().filter(it=>(kind==='all'||it.kind===kind)&&(sys==='all'||it.system===sys));$('#reviewQueue').innerHTML=filtered.length?filtered.map(it=>'<article class="queue-item"><div><p>'+esc(CURRICULUM[it.system].title)+'</p><h2>'+esc(it.title)+'</h2><span>'+esc(it.detail)+'</span></div><div class="queue-actions"><a class="btn secondary" href="'+it.url+'">'+(it.kind==='case'?'再做一次':'回看知识')+' →</a><button class="text-btn" data-resolve-review="'+esc(it.id)+'">本轮复习完成</button></div></article>').join(''):'<div class="empty"><strong>当前没有待复习内容</strong><p>需要再练的案例和标记“再记”的内容，会保留在这里。</p><a class="btn secondary" href="#practice">去练习 →</a></div>';document.querySelectorAll('[data-resolve-review]').forEach(b=>b.onclick=()=>{const item=queue().find(it=>it.id===b.dataset.resolveReview);if(!item)return;if(item.kind==='case')record(item.id).review=false;else if(item.kind==='recall')state.curriculumRecall[item.id]='';else state.wrong=state.wrong.filter(id=>id!==item.system);save();reviewPage();badge()})}
+$('#reviewKind').onchange=show;$('#reviewSystem').onchange=show;show();badge()}
+const prior=render;
+function decorate(){const nav=document.querySelector('[data-nav="mistakes"]');if(nav){nav.href='#review';const label=nav.querySelector('span');if(label)label.textContent='复习清单'}badge();font()}
+window.CaseLab={attach,queue,badge};
+render=function(){if(location.hash.split('?')[0]==='#review')reviewPage();else prior();decorate()};
+document.addEventListener('click',()=>queueMicrotask(badge));document.addEventListener('change',()=>queueMicrotask(badge));render();
+})();
